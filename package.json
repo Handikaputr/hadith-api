@@ -1,0 +1,13 @@
+{
+  "name": "hadith-api",
+  "version": "1.0.0",
+  "description": "API Pencarian Hadist Berbahasa Indonesia - Kutubus Sittah",
+  "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Build complete'"
+  },
+  "keywords": ["hadith", "hadist", "islam", "api", "kutubus-sittah"],
+  "author": "",
+  "license": "MIT"
+}
