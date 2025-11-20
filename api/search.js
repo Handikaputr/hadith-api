@@ -43,5 +43,16 @@ export default function handler(req, res) {
     );
   });
 
-  res.status(200).json(results.slice(0, 50));
+  // Prioritaskan urutan: Shahih al-Bukhari, Shahih Muslim, lalu yang lain
+  const sortedResults = results.sort((a, b) => {
+    const bookA = (a.book || "").toLowerCase();
+    const bookB = (b.book || "").toLowerCase();
+    
+    const priorityA = bookA.includes("bukhari") ? 1 : bookA.includes("muslim") ? 2 : 3;
+    const priorityB = bookB.includes("bukhari") ? 1 : bookB.includes("muslim") ? 2 : 3;
+    
+    return priorityA - priorityB;
+  });
+
+  res.status(200).json(sortedResults.slice(0, 50));
 }
