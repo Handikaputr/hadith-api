@@ -55,14 +55,14 @@ export default function handler(req, res) {
     const indo = (h.indonesia || "").toLowerCase();
     const arab = (h.arab || "").toLowerCase();
 
-    // Jika query pendek (1-2 kata), gunakan exact match
-    if (keywords.length <= 2) {
+    // Jika query pendek (<= 6 kata), gunakan exact match (kata harus ada, urutan bebas)
+    if (keywords.length <= 6) {
       return keywords.every((kw) =>
         indo.includes(kw) || arab.includes(kw)
       );
     }
 
-    // Jika query panjang (3+ kata), gunakan similarity matching
+    // Jika query panjang (> 6 kata), gunakan similarity matching
     const indoSimilarity = calculateSimilarity(indo, keywords);
     const arabSimilarity = calculateSimilarity(arab, keywords);
     
@@ -109,19 +109,24 @@ export default function handler(req, res) {
   // Hapus field _similarity sebelum return
   const cleanResults = sortedResults.map(({ _similarity, ...rest }) => rest);
 
-  // Hapus duplikat yang sangat mirip (ambil yang pertama saja)
-  const uniqueResults = [];
-  const seenTexts = new Set();
+  // Hapus duplikat hanya untuk query panjang (> 6 kata)
+  if (keywords.length > 6) {
+    const uniqueResults = [];
+    const seenTexts = new Set();
 
-  for (const hadith of cleanResults) {
-    // Buat fingerprint dari 100 karakter pertama untuk deteksi duplikat
-    const fingerprint = (hadith.indonesia || "").substring(0, 100).toLowerCase().trim();
-    
-    if (!seenTexts.has(fingerprint)) {
-      seenTexts.add(fingerprint);
-      uniqueResults.push(hadith);
+    for (const hadith of cleanResults) {
+      // Buat fingerprint dari 100 karakter pertama untuk deteksi duplikat
+      const fingerprint = (hadith.indonesia || "").substring(0, 100).toLowerCase().trim();
+      
+      if (!seenTexts.has(fingerprint)) {
+        seenTexts.add(fingerprint);
+        uniqueResults.push(hadith);
+      }
     }
+
+    return res.status(200).json(uniqueResults.slice(0, total));
   }
 
-  res.status(200).json(uniqueResults.slice(0, total));
+  // Untuk query pendek, tampilkan semua hasil
+  res.status(200).json(cleanResults.slice(0, total));
 }
