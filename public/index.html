@@ -145,6 +145,11 @@
                                     <td class="px-4 py-3 text-gray-600">string</td>
                                     <td class="px-4 py-3 text-gray-600">Kata kunci pencarian (wajib)</td>
                                 </tr>
+                                <tr>
+                                    <td class="px-4 py-3 font-mono text-green-600">total</td>
+                                    <td class="px-4 py-3 text-gray-600">number</td>
+                                    <td class="px-4 py-3 text-gray-600">Jumlah maksimal hasil (opsional, default: 50, max: 100)</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -168,12 +173,90 @@
                 <!-- Usage Example -->
                 <div>
                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Contoh Penggunaan</h3>
-                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <code class="text-sm font-mono text-gray-700">
-                            fetch('/api/search?q=shalat')<br>
-                            &nbsp;&nbsp;.then(res => res.json())<br>
-                            &nbsp;&nbsp;.then(data => console.log(data))
-                        </code>
+                    <div class="space-y-3">
+                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <p class="text-xs text-gray-600 mb-2">Pencarian sederhana:</p>
+                            <code class="text-sm font-mono text-gray-700">
+                                fetch('/api/search?q=shalat')<br>
+                                &nbsp;&nbsp;.then(res => res.json())<br>
+                                &nbsp;&nbsp;.then(data => console.log(data))
+                            </code>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <p class="text-xs text-gray-600 mb-2">Dengan parameter total:</p>
+                            <code class="text-sm font-mono text-gray-700">
+                                fetch('/api/search?q=shalat&total=10')<br>
+                                &nbsp;&nbsp;.then(res => res.json())<br>
+                                &nbsp;&nbsp;.then(data => console.log(data))
+                            </code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Detail Hadist -->
+                <div class="mt-8 pt-8 border-t border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                        <span class="mr-3">🔍</span>
+                        Detail Hadist
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-700 mb-3">Endpoint</h4>
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <code class="text-green-600 font-mono">GET /api/searchDetail?book={book}&number={number}</code>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-700 mb-3">Parameter</h4>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left font-semibold">Nama</th>
+                                            <th class="px-4 py-3 text-left font-semibold">Tipe</th>
+                                            <th class="px-4 py-3 text-left font-semibold">Deskripsi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200">
+                                        <tr>
+                                            <td class="px-4 py-3 font-mono text-green-600">book</td>
+                                            <td class="px-4 py-3 text-gray-600">string</td>
+                                            <td class="px-4 py-3 text-gray-600">Nama kitab (wajib). Contoh: bukhari, muslim, tirmidzi</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-4 py-3 font-mono text-green-600">number</td>
+                                            <td class="px-4 py-3 text-gray-600">number</td>
+                                            <td class="px-4 py-3 text-gray-600">Nomor hadist (wajib)</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-700 mb-3">Contoh Penggunaan</h4>
+                            <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <code class="text-sm font-mono text-gray-700">
+                                    fetch('/api/searchDetail?book=bukhari&number=1')<br>
+                                    &nbsp;&nbsp;.then(res => res.json())<br>
+                                    &nbsp;&nbsp;.then(data => console.log(data))
+                                </code>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-700 mb-3">Contoh Response</h4>
+                            <div class="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                                <pre class="text-green-400 font-mono text-sm"><code>{
+  "number": 1,
+  "arab": "حَدَّثَنَا عَبْدُ اللَّهِ...",
+  "indonesia": "Telah menceritakan kepada kami...",
+  "book": "bukhari"
+}</code></pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
