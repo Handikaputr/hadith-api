@@ -16,8 +16,11 @@ export default function handler(req, res) {
 
   const q = (req.query.q || "").trim().toLowerCase();
   if (!q) {
-    return res.status(400).json({ error: "query kosong ya sayang 💗" });
+    return res.status(400).json({ error: "query kosong " });
   }
+
+  // ambil parameter total (default 50, max 100)
+  const total = Math.min(parseInt(req.query.max) || 50, 100);
 
   // pecah query jadi kata-kata
   const keywords = q.split(/\s+/).filter(Boolean);
@@ -64,5 +67,5 @@ export default function handler(req, res) {
     return lengthA - lengthB;
   });
 
-  res.status(200).json(sortedResults.slice(0, 50));
+  res.status(200).json(sortedResults.slice(0, total));
 }
