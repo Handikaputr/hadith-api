@@ -109,5 +109,19 @@ export default function handler(req, res) {
   // Hapus field _similarity sebelum return
   const cleanResults = sortedResults.map(({ _similarity, ...rest }) => rest);
 
-  res.status(200).json(cleanResults.slice(0, total));
+  // Hapus duplikat yang sangat mirip (ambil yang pertama saja)
+  const uniqueResults = [];
+  const seenTexts = new Set();
+
+  for (const hadith of cleanResults) {
+    // Buat fingerprint dari 100 karakter pertama untuk deteksi duplikat
+    const fingerprint = (hadith.indonesia || "").substring(0, 100).toLowerCase().trim();
+    
+    if (!seenTexts.has(fingerprint)) {
+      seenTexts.add(fingerprint);
+      uniqueResults.push(hadith);
+    }
+  }
+
+  res.status(200).json(uniqueResults.slice(0, total));
 }
