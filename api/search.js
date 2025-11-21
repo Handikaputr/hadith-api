@@ -79,27 +79,8 @@ export default function handler(req, res) {
     };
   });
 
-  // Prioritaskan urutan: Shahih al-Bukhari, Shahih Muslim, lalu yang lain
-  // Dalam setiap kategori, urutkan dari teks terpendek ke terpanjang
-  // Jika ada similarity score, prioritaskan yang lebih tinggi
+  // Sorting berdasarkan panjang teks (terpendek di atas)
   const sortedResults = results.sort((a, b) => {
-    const bookA = (a.book || "").toLowerCase();
-    const bookB = (b.book || "").toLowerCase();
-    
-    const priorityA = bookA.includes("bukhari") ? 1 : bookA.includes("muslim") ? 2 : 3;
-    const priorityB = bookB.includes("bukhari") ? 1 : bookB.includes("muslim") ? 2 : 3;
-    
-    // Jika prioritas berbeda, urutkan berdasarkan prioritas
-    if (priorityA !== priorityB) {
-      return priorityA - priorityB;
-    }
-    
-    // Jika prioritas sama, urutkan berdasarkan similarity score (tertinggi dulu)
-    if (a._similarity !== b._similarity) {
-      return b._similarity - a._similarity;
-    }
-    
-    // Jika similarity sama, urutkan berdasarkan panjang teks (terpendek dulu)
     const lengthA = (a.indonesia || "").length;
     const lengthB = (b.indonesia || "").length;
     
