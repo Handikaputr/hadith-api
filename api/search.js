@@ -44,6 +44,7 @@ export default function handler(req, res) {
   });
 
   // Prioritaskan urutan: Shahih al-Bukhari, Shahih Muslim, lalu yang lain
+  // Dalam setiap kategori, urutkan dari teks terpendek ke terpanjang
   const sortedResults = results.sort((a, b) => {
     const bookA = (a.book || "").toLowerCase();
     const bookB = (b.book || "").toLowerCase();
@@ -51,7 +52,16 @@ export default function handler(req, res) {
     const priorityA = bookA.includes("bukhari") ? 1 : bookA.includes("muslim") ? 2 : 3;
     const priorityB = bookB.includes("bukhari") ? 1 : bookB.includes("muslim") ? 2 : 3;
     
-    return priorityA - priorityB;
+    // Jika prioritas berbeda, urutkan berdasarkan prioritas
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // Jika prioritas sama, urutkan berdasarkan panjang teks (terpendek dulu)
+    const lengthA = (a.indonesia || "").length;
+    const lengthB = (b.indonesia || "").length;
+    
+    return lengthA - lengthB;
   });
 
   res.status(200).json(sortedResults.slice(0, 50));
