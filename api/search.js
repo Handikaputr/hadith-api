@@ -1,7 +1,9 @@
 import fs from "fs";
 import path from "path";
+import Fuse from "fuse.js";
 
 let cache = null;
+let fuseIndex = null;
 
 export default function handler(req, res) {
   // Set CORS headers
@@ -51,66 +53,74 @@ export default function handler(req, res) {
       const filePath = path.join(process.cwd(), "public", "hadist_combined.json");
       const raw = fs.readFileSync(filePath, "utf8");
       cache = JSON.parse(raw);
+      
+      // Inisialisasi Fuse.js untuk fuzzy search
+      fuseIndex = new Fuse(cache, {
+        keys: ['indonesia', 'arab'],
+        threshold: 0.3, // 0 = exact match, 1 = match anything (0.3 = cukup ketat)
+        ignoreLocation: true, // Cari di seluruh teks, tidak peduli posisi
+        minMatchCharLength: 3,
+        includeScore: true
+      });
     } catch (error) {
       return res.status(500).json({ error: "Gagal memuat data hadist", details: error.message });
     }
   }
 
-  const results = cache.filter((h) => {
-    const indo = (h.indonesia || "").toLowerCase();
-    const arab = (h.arab || "").toLowerCase();
-    const book = (h.book || "").toLowerCase();
+  // Gunakan Fuse.js untuk fuzzy search
+  let fuseResults = fuseIndex.search(q);
+  
+  // Filter berdasarkan buku jika parameter book ada
+  if (bookFilter.length > 0) {
+    fuseResults = fuseResults.filter(result => {
+      const book = (result.item.book || "").toLowerCase();
+      return bookFilter.some(bf => book.includes(bf));
+    });
+  }
+  
+  // Untuk query pendek (<= 6 kata), fallback ke exact match jika hasil Fuse terlalu sedikit
+  if (keywords.length <= 6 && fuseResults.length < 10) {
+    const exactResults = cache.filter((h) => {
+      const indo = (h.indonesia || "").toLowerCase();
+      const arab = (h.arab || "").toLowerCase();
+      const book = (h.book || "").toLowerCase();
 
-    // Filter berdasarkan buku jika parameter book ada
-    if (bookFilter.length > 0) {
-      const matchBook = bookFilter.some(bf => book.includes(bf));
-      if (!matchBook) return false;
-    }
+      // Filter berdasarkan buku
+      if (bookFilter.length > 0) {
+        const matchBook = bookFilter.some(bf => book.includes(bf));
+        if (!matchBook) return false;
+      }
 
-    // Jika query pendek (<= 6 kata), gunakan exact match (kata harus ada, urutan bebas)
-    if (keywords.length <= 6) {
       return keywords.every((kw) =>
         indo.includes(kw) || arab.includes(kw)
       );
-    }
-
-    // Jika query panjang (> 6 kata), gunakan similarity matching
-    const indoSimilarity = calculateSimilarity(indo, keywords);
-    const arabSimilarity = calculateSimilarity(arab, keywords);
+    }).map(item => ({ item, score: 0 })); // score 0 = exact match
     
-    // Minimal 70% similarity
-    return indoSimilarity >= 0.7 || arabSimilarity >= 0.7;
-  }).map((h) => {
-    // Tambahkan score untuk sorting
-    const indoSimilarity = calculateSimilarity((h.indonesia || "").toLowerCase(), keywords);
-    const arabSimilarity = calculateSimilarity((h.arab || "").toLowerCase(), keywords);
+    // Gabungkan hasil Fuse dengan exact match, hindari duplikat
+    const fuseIds = new Set(fuseResults.map(r => r.item.number + r.item.book));
+    const additionalResults = exactResults.filter(r => 
+      !fuseIds.has(r.item.number + r.item.book)
+    );
     
-    return {
-      ...h,
-      _similarity: Math.max(indoSimilarity, arabSimilarity)
-    };
-  });
+    fuseResults = [...fuseResults, ...additionalResults];
+  }
 
-  // Sorting:
-  // - Untuk query panjang (> 6 kata): prioritas similarity score tertinggi, lalu teks terpendek
-  // - Untuk query pendek (<= 6 kata): hanya berdasarkan panjang teks
-  const sortedResults = results.sort((a, b) => {
-    // Jika query panjang, prioritaskan similarity score
-    if (keywords.length > 6) {
-      if (b._similarity !== a._similarity) {
-        return b._similarity - a._similarity;
-      }
+  // Sorting berdasarkan score (semakin kecil semakin relevan) dan panjang teks
+  const sortedResults = fuseResults.sort((a, b) => {
+    // Prioritaskan score Fuse (semakin kecil semakin baik)
+    if (a.score !== b.score) {
+      return a.score - b.score;
     }
     
-    // Jika similarity sama atau query pendek, urutkan berdasarkan panjang teks
-    const lengthA = (a.indonesia || "").length;
-    const lengthB = (b.indonesia || "").length;
+    // Jika score sama, urutkan berdasarkan panjang teks
+    const lengthA = (a.item.indonesia || "").length;
+    const lengthB = (b.item.indonesia || "").length;
     
     return lengthA - lengthB;
   });
 
-  // Hapus field _similarity sebelum return
-  const cleanResults = sortedResults.map(({ _similarity, ...rest }) => rest);
+  // Extract item dari hasil Fuse
+  const cleanResults = sortedResults.map(r => r.item);
 
   // Hapus duplikat hanya untuk query panjang (> 6 kata)
   if (keywords.length > 6) {

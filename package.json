@@ -7,7 +7,16 @@
     "dev": "vercel dev",
     "build": "echo 'Build complete'"
   },
-  "keywords": ["hadith", "hadist", "islam", "api", "kutubus-sittah"],
+  "keywords": [
+    "hadith",
+    "hadist",
+    "islam",
+    "api",
+    "kutubus-sittah"
+  ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "fuse.js": "^7.1.0"
+  }
 }
