@@ -91,8 +91,18 @@ export default function handler(req, res) {
     };
   });
 
-  // Sorting berdasarkan panjang teks (terpendek di atas)
+  // Sorting:
+  // - Untuk query panjang (> 6 kata): prioritas similarity score tertinggi dulu
+  // - Untuk query pendek (<= 6 kata): berdasarkan panjang teks
   const sortedResults = results.sort((a, b) => {
+    if (keywords.length > 6) {
+      // Prioritaskan similarity score (tertinggi di atas)
+      if (b._similarity !== a._similarity) {
+        return b._similarity - a._similarity;
+      }
+    }
+    
+    // Jika similarity sama atau query pendek, sort by length
     const lengthA = (a.indonesia || "").length;
     const lengthB = (b.indonesia || "").length;
     
