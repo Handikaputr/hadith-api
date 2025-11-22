@@ -54,32 +54,24 @@ export default function handler(req, res) {
       const raw = fs.readFileSync(filePath, "utf8");
       cache = JSON.parse(raw);
       
-      // Inisialisasi Fuse.js untuk fuzzy search
+      // Inisialisasi Fuse.js index hanya sekali (bukan per request)
       fuseIndex = new Fuse(cache, {
         keys: ['indonesia', 'arab'],
-        threshold: 0.3, // 0 = exact match, 1 = match anything (0.3 = cukup ketat)
-        ignoreLocation: true, // Cari di seluruh teks, tidak peduli posisi
+        threshold: 0.4, // Sedikit lebih longgar untuk performa
+        ignoreLocation: true,
         minMatchCharLength: 3,
-        includeScore: true
+        includeScore: true,
+        useExtendedSearch: false, // Matikan fitur extended untuk speed
+        findAllMatches: false, // Stop saat cukup match
+        distance: 100 // Batasi distance untuk speed
       });
     } catch (error) {
       return res.status(500).json({ error: "Gagal memuat data hadist", details: error.message });
     }
   }
 
-  // Gunakan Fuse.js untuk fuzzy search
-  let fuseResults = fuseIndex.search(q);
-  
-  // Filter berdasarkan buku jika parameter book ada
-  if (bookFilter.length > 0) {
-    fuseResults = fuseResults.filter(result => {
-      const book = (result.item.book || "").toLowerCase();
-      return bookFilter.some(bf => book.includes(bf));
-    });
-  }
-  
-  // Untuk query pendek (<= 6 kata), fallback ke exact match jika hasil Fuse terlalu sedikit
-  if (keywords.length <= 6 && fuseResults.length < 10) {
+  // Untuk query pendek (<= 6 kata), gunakan simple search (lebih cepat)
+  if (keywords.length <= 6) {
     const exactResults = cache.filter((h) => {
       const indo = (h.indonesia || "").toLowerCase();
       const arab = (h.arab || "").toLowerCase();
@@ -94,19 +86,29 @@ export default function handler(req, res) {
       return keywords.every((kw) =>
         indo.includes(kw) || arab.includes(kw)
       );
-    }).map(item => ({ item, score: 0 })); // score 0 = exact match
+    });
     
-    // Gabungkan hasil Fuse dengan exact match, hindari duplikat
-    const fuseIds = new Set(fuseResults.map(r => r.item.number + r.item.book));
-    const additionalResults = exactResults.filter(r => 
-      !fuseIds.has(r.item.number + r.item.book)
-    );
+    // Sort by length
+    exactResults.sort((a, b) => {
+      return (a.indonesia || "").length - (b.indonesia || "").length;
+    });
     
-    fuseResults = [...fuseResults, ...additionalResults];
+    return res.status(200).json(exactResults.slice(0, total));
   }
 
-  // Sorting berdasarkan score (semakin kecil semakin relevan) dan panjang teks
-  const sortedResults = fuseResults.sort((a, b) => {
+  // Gunakan Fuse.js hanya untuk query panjang (> 6 kata)
+  let fuseResults = fuseIndex.search(q, { limit: total * 2 }); // Batasi hasil untuk speed
+  
+  // Filter berdasarkan buku jika parameter book ada
+  if (bookFilter.length > 0) {
+    fuseResults = fuseResults.filter(result => {
+      const book = (result.item.book || "").toLowerCase();
+      return bookFilter.some(bf => book.includes(bf));
+    });
+  }
+  
+  // Sorting berdasarkan score dan panjang teks
+  fuseResults.sort((a, b) => {
     // Prioritaskan score Fuse (semakin kecil semakin baik)
     if (a.score !== b.score) {
       return a.score - b.score;
@@ -120,26 +122,21 @@ export default function handler(req, res) {
   });
 
   // Extract item dari hasil Fuse
-  const cleanResults = sortedResults.map(r => r.item);
+  const cleanResults = fuseResults.map(r => r.item);
 
-  // Hapus duplikat hanya untuk query panjang (> 6 kata)
-  if (keywords.length > 6) {
-    const uniqueResults = [];
-    const seenTexts = new Set();
+  // Hapus duplikat untuk query panjang
+  const uniqueResults = [];
+  const seenTexts = new Set();
 
-    for (const hadith of cleanResults) {
-      // Buat fingerprint dari 100 karakter pertama untuk deteksi duplikat
-      const fingerprint = (hadith.indonesia || "").substring(0, 100).toLowerCase().trim();
-      
-      if (!seenTexts.has(fingerprint)) {
-        seenTexts.add(fingerprint);
-        uniqueResults.push(hadith);
-      }
+  for (const hadith of cleanResults) {
+    // Buat fingerprint dari 100 karakter pertama untuk deteksi duplikat
+    const fingerprint = (hadith.indonesia || "").substring(0, 100).toLowerCase().trim();
+    
+    if (!seenTexts.has(fingerprint)) {
+      seenTexts.add(fingerprint);
+      uniqueResults.push(hadith);
     }
-
-    return res.status(200).json(uniqueResults.slice(0, total));
   }
 
-  // Untuk query pendek, tampilkan semua hasil
-  res.status(200).json(cleanResults.slice(0, total));
+  res.status(200).json(uniqueResults.slice(0, total));
 }
