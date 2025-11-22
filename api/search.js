@@ -56,54 +56,59 @@ export default function handler(req, res) {
     }
   }
 
-  // Simple & fast search untuk semua query
   const results = cache.filter((h) => {
     const indo = (h.indonesia || "").toLowerCase();
     const arab = (h.arab || "").toLowerCase();
     const book = (h.book || "").toLowerCase();
 
-    // Filter berdasarkan buku
+    // Filter berdasarkan buku jika parameter book ada
     if (bookFilter.length > 0) {
       const matchBook = bookFilter.some(bf => book.includes(bf));
       if (!matchBook) return false;
     }
 
-    // Untuk Arab: exact match
-    if (arab.includes(q)) return true;
+    // Jika query pendek (<= 6 kata), gunakan exact match (kata harus ada, urutan bebas)
+    if (keywords.length <= 6) {
+      return keywords.every((kw) =>
+        indo.includes(kw) || arab.includes(kw)
+      );
+    }
 
-    // Untuk Indonesia: by word
-    return keywords.every((kw) => indo.includes(kw));
+    // Jika query panjang (> 6 kata), gunakan similarity matching
+    const indoSimilarity = calculateSimilarity(indo, keywords);
+    const arabSimilarity = calculateSimilarity(arab, keywords);
+    
+    // Minimal 70% similarity
+    return indoSimilarity >= 0.7 || arabSimilarity >= 0.7;
   }).map((h) => {
-    // Hitung simple score: jumlah kata yang match
-    const indo = (h.indonesia || "").toLowerCase();
-    const matchCount = keywords.filter(kw => indo.includes(kw)).length;
+    // Tambahkan score untuk sorting
+    const indoSimilarity = calculateSimilarity((h.indonesia || "").toLowerCase(), keywords);
+    const arabSimilarity = calculateSimilarity((h.arab || "").toLowerCase(), keywords);
     
     return {
       ...h,
-      _score: matchCount,
-      _length: (h.indonesia || "").length
+      _similarity: Math.max(indoSimilarity, arabSimilarity)
     };
   });
 
-  // Sort: prioritas match count tertinggi (untuk query panjang), lalu text terpendek
-  results.sort((a, b) => {
-    // Untuk query panjang, prioritaskan yang banyak match
-    if (keywords.length > 6 && a._score !== b._score) {
-      return b._score - a._score;
-    }
-    // Sort by length
-    return a._length - b._length;
+  // Sorting berdasarkan panjang teks (terpendek di atas)
+  const sortedResults = results.sort((a, b) => {
+    const lengthA = (a.indonesia || "").length;
+    const lengthB = (b.indonesia || "").length;
+    
+    return lengthA - lengthB;
   });
 
-  // Remove scoring fields
-  const cleanResults = results.map(({ _score, _length, ...rest }) => rest);
+  // Hapus field _similarity sebelum return
+  const cleanResults = sortedResults.map(({ _similarity, ...rest }) => rest);
 
-  // Hapus duplikat untuk query panjang
+  // Hapus duplikat hanya untuk query panjang (> 6 kata)
   if (keywords.length > 6) {
     const uniqueResults = [];
     const seenTexts = new Set();
 
     for (const hadith of cleanResults) {
+      // Buat fingerprint dari 100 karakter pertama untuk deteksi duplikat
       const fingerprint = (hadith.indonesia || "").substring(0, 100).toLowerCase().trim();
       
       if (!seenTexts.has(fingerprint)) {
@@ -115,5 +120,6 @@ export default function handler(req, res) {
     return res.status(200).json(uniqueResults.slice(0, total));
   }
 
+  // Untuk query pendek, tampilkan semua hasil
   res.status(200).json(cleanResults.slice(0, total));
 }
