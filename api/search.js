@@ -22,6 +22,11 @@ export default function handler(req, res) {
   // ambil parameter total (default 50, max 100)
   const total = Math.min(parseInt(req.query.max) || 50, 100);
 
+  // ambil parameter book (bisa lebih dari 1, dipisah koma)
+  const bookFilter = req.query.book ? 
+    req.query.book.toLowerCase().split(',').map(b => b.trim()).filter(Boolean) : 
+    [];
+
   // pecah query jadi kata-kata
   const keywords = q.split(/\s+/).filter(Boolean);
 
@@ -54,6 +59,13 @@ export default function handler(req, res) {
   const results = cache.filter((h) => {
     const indo = (h.indonesia || "").toLowerCase();
     const arab = (h.arab || "").toLowerCase();
+    const book = (h.book || "").toLowerCase();
+
+    // Filter berdasarkan buku jika parameter book ada
+    if (bookFilter.length > 0) {
+      const matchBook = bookFilter.some(bf => book.includes(bf));
+      if (!matchBook) return false;
+    }
 
     // Jika query pendek (<= 6 kata), gunakan exact match (kata harus ada, urutan bebas)
     if (keywords.length <= 6) {
