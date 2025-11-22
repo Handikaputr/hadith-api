@@ -30,46 +30,19 @@ export default function handler(req, res) {
   // pecah query jadi kata-kata
   const keywords = q.split(/\s+/).filter(Boolean);
 
-  // Fungsi untuk menghitung similarity dengan mempertimbangkan density dan sequence
-  const calculateSimilarity = (text, query) => {
-    const textLower = text.toLowerCase();
-    const queryLower = query.toLowerCase();
-    const textWords = textLower.split(/\s+/).filter(Boolean);
-    const queryWords = queryLower.split(/\s+/).filter(Boolean);
+  // Fungsi untuk menghitung similarity (Jaccard similarity)
+  const calculateSimilarity = (text, keywords) => {
+    const textWords = text.toLowerCase().split(/\s+/).filter(Boolean);
+    const textSet = new Set(textWords);
+    const keywordSet = new Set(keywords);
     
-    // 1. Exact substring match - prioritas tertinggi
-    if (textLower.includes(queryLower)) {
-      return 1.0;
-    }
+    // Hitung intersection (kata yang sama)
+    const intersection = [...keywordSet].filter(kw => {
+      return [...textSet].some(tw => tw.includes(kw) || kw.includes(tw));
+    }).length;
     
-    // 2. Hitung berapa kata yang match
-    const matchedWords = queryWords.filter(qw => 
-      textWords.some(tw => tw.includes(qw) || qw.includes(tw))
-    );
-    const wordMatchRatio = matchedWords.length / queryWords.length;
-    
-    // Jika word match < 70%, langsung return
-    if (wordMatchRatio < 0.7) {
-      return wordMatchRatio * 0.5; // Penalty untuk match rendah
-    }
-    
-    // 3. Hitung density - seberapa rapat kata-kata muncul
-    const positions = [];
-    matchedWords.forEach(qw => {
-      const idx = textWords.findIndex(tw => tw.includes(qw) || qw.includes(tw));
-      if (idx !== -1) positions.push(idx);
-    });
-    
-    if (positions.length > 1) {
-      positions.sort((a, b) => a - b);
-      const span = positions[positions.length - 1] - positions[0] + 1;
-      const density = matchedWords.length / span; // Semakin rapat = semakin tinggi
-      
-      // 4. Combine: word match + density
-      return wordMatchRatio * 0.7 + Math.min(density, 1) * 0.3;
-    }
-    
-    return wordMatchRatio;
+    // Jaccard similarity
+    return intersection / keywordSet.size;
   };
 
   // load dataset hanya sekali
@@ -102,19 +75,19 @@ export default function handler(req, res) {
     }
 
     // Jika query panjang (> 6 kata), gunakan similarity matching
-    const indoSimilarity = calculateSimilarity(indo, q);
-    const arabMatch = arab.includes(q); // Arab tetap exact match
+    const indoSimilarity = calculateSimilarity(indo, keywords);
+    const arabSimilarity = calculateSimilarity(arab, keywords);
     
-    // Minimal 70% similarity untuk Indonesia, atau exact match untuk Arab
-    return indoSimilarity >= 0.7 || arabMatch;
+    // Minimal 70% similarity
+    return indoSimilarity >= 0.7 || arabSimilarity >= 0.7;
   }).map((h) => {
     // Tambahkan score untuk sorting
-    const indoSimilarity = calculateSimilarity((h.indonesia || "").toLowerCase(), q);
-    const arabMatch = (h.arab || "").toLowerCase().includes(q) ? 1.0 : 0;
+    const indoSimilarity = calculateSimilarity((h.indonesia || "").toLowerCase(), keywords);
+    const arabSimilarity = calculateSimilarity((h.arab || "").toLowerCase(), keywords);
     
     return {
       ...h,
-      _similarity: Math.max(indoSimilarity, arabMatch)
+      _similarity: Math.max(indoSimilarity, arabSimilarity)
     };
   });
 
