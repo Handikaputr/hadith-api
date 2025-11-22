@@ -54,23 +54,23 @@ export default function handler(req, res) {
       const raw = fs.readFileSync(filePath, "utf8");
       cache = JSON.parse(raw);
       
-      // Inisialisasi Fuse.js index hanya sekali (bukan per request)
+      // Inisialisasi Fuse.js index hanya untuk teks Indonesia
       fuseIndex = new Fuse(cache, {
-        keys: ['indonesia', 'arab'],
-        threshold: 0.4, // Sedikit lebih longgar untuk performa
+        keys: ['indonesia'], // Hanya search di Indonesia
+        threshold: 0.4,
         ignoreLocation: true,
         minMatchCharLength: 3,
         includeScore: true,
-        useExtendedSearch: false, // Matikan fitur extended untuk speed
-        findAllMatches: false, // Stop saat cukup match
-        distance: 100 // Batasi distance untuk speed
+        useExtendedSearch: false,
+        findAllMatches: false,
+        distance: 100
       });
     } catch (error) {
       return res.status(500).json({ error: "Gagal memuat data hadist", details: error.message });
     }
   }
 
-  // Untuk query pendek (<= 6 kata), gunakan simple search (lebih cepat)
+  // Untuk query pendek (<= 6 kata), gunakan simple search
   if (keywords.length <= 6) {
     const exactResults = cache.filter((h) => {
       const indo = (h.indonesia || "").toLowerCase();
@@ -83,9 +83,13 @@ export default function handler(req, res) {
         if (!matchBook) return false;
       }
 
-      return keywords.every((kw) =>
-        indo.includes(kw) || arab.includes(kw)
-      );
+      // Untuk Indonesia: cari by word (kata harus ada, urutan bebas)
+      const indoMatch = keywords.every((kw) => indo.includes(kw));
+      
+      // Untuk Arab: harus sama persis dengan query
+      const arabMatch = arab.includes(q);
+
+      return indoMatch || arabMatch;
     });
     
     // Sort by length
@@ -96,8 +100,22 @@ export default function handler(req, res) {
     return res.status(200).json(exactResults.slice(0, total));
   }
 
-  // Gunakan Fuse.js hanya untuk query panjang (> 6 kata)
-  let fuseResults = fuseIndex.search(q, { limit: total * 2 }); // Batasi hasil untuk speed
+  // Gunakan Fuse.js hanya untuk teks Indonesia (query panjang > 6 kata)
+  let fuseResults = fuseIndex.search(q, { limit: total * 2 });
+  
+  // Tambahkan hasil exact match untuk teks Arab
+  const arabExactResults = cache.filter((h) => {
+    const arab = (h.arab || "").toLowerCase();
+    return arab.includes(q);
+  }).map(item => ({ item, score: 0 })); // score 0 = exact match
+  
+  // Gabungkan hasil, hindari duplikat
+  const fuseIds = new Set(fuseResults.map(r => r.item.number + r.item.book));
+  const additionalArabResults = arabExactResults.filter(r => 
+    !fuseIds.has(r.item.number + r.item.book)
+  );
+  
+  fuseResults = [...fuseResults, ...additionalArabResults];
   
   // Filter berdasarkan buku jika parameter book ada
   if (bookFilter.length > 0) {
